@@ -1,0 +1,243 @@
+import { RepositoryData, StoryStructure, StorySection } from '../types'
+
+export class StoryGeneratorService {
+  generateStory(repository: RepositoryData): StoryStructure {
+    return {
+      why: this.generateWhySection(repository),
+      problem: this.generateProblemSection(repository),
+      approach: this.generateApproachSection(repository),
+      result: this.generateResultSection(repository),
+      next: this.generateNextSection(repository)
+    }
+  }
+
+  private generateWhySection(repo: RepositoryData): StorySection {
+    const primaryLanguage = repo.language
+    const isPopular = repo.stars > 50
+    const hasDescription = repo.description.length > 0
+
+    let content = ''
+    let bullets = []
+
+    if (hasDescription) {
+      content = `このプロジェクト「${repo.name}」は、${repo.description}を目的として開発されました。`
+    } else {
+      content = `このプロジェクト「${repo.name}」は、${primaryLanguage}を使用して開発されたソフトウェアです。`
+    }
+
+    bullets = [
+      `主要言語: ${primaryLanguage}`,
+      `開発開始: ${new Date(repo.createdAt).toLocaleDateString('ja-JP')}`,
+      `最終更新: ${new Date(repo.updatedAt).toLocaleDateString('ja-JP')}`
+    ]
+
+    if (isPopular) {
+      bullets.push(`GitHubスター数: ${repo.stars}個`)
+    }
+
+    return {
+      title: 'なぜこのプロジェクトを作ったのか',
+      content,
+      bullets
+    }
+  }
+
+  private generateProblemSection(repo: RepositoryData): StorySection {
+    const hasTests = repo.files.some(file => file.path.includes('test') || file.path.includes('spec'))
+    const hasDocs = repo.files.some(file => file.path.includes('doc') || file.type === 'markdown')
+    const commitCount = repo.commits.length
+
+    let content = ''
+    let bullets = []
+
+    // Analyze project complexity
+    const languageCount = Object.keys(repo.languages).length
+    const totalFiles = repo.files.length
+
+    if (languageCount > 1) {
+      content = '複数の技術スタックを統合する必要があり、'
+    } else {
+      content = `${repo.language}での開発において、`
+    }
+
+    if (totalFiles > 50) {
+      content += '大規模なコードベースの管理と'
+    } else {
+      content += '効率的な開発と'
+    }
+
+    content += '保守性の確保が課題でした。'
+
+    bullets = [
+      `ファイル数: ${totalFiles}個`,
+      `使用言語: ${languageCount}種類`,
+      `コミット数: ${commitCount}回`
+    ]
+
+    if (!hasTests) {
+      bullets.push('テストカバレッジの改善が必要')
+    }
+
+    if (!hasDocs) {
+      bullets.push('ドキュメント整備が必要')
+    }
+
+    return {
+      title: '解決したい課題',
+      content,
+      bullets
+    }
+  }
+
+  private generateApproachSection(repo: RepositoryData): StorySection {
+    const architectureFiles = repo.files.filter(file => 
+      file.path.includes('config') || 
+      file.path.includes('src') ||
+      file.path.includes('lib')
+    )
+
+    const frameworks = this.detectFrameworks(repo)
+    const tools = this.detectTools(repo)
+
+    let content = `${repo.language}をベースとして、`
+    
+    if (frameworks.length > 0) {
+      content += `${frameworks.join('、')}などのフレームワークを活用し、`
+    }
+
+    if (tools.length > 0) {
+      content += `${tools.join('、')}といったツールを組み合わせて開発を進めました。`
+    } else {
+      content += 'モダンな開発手法を取り入れながら実装しました。'
+    }
+
+    const bullets = [
+      `主要技術: ${repo.language}`,
+      ...frameworks.map(fw => `フレームワーク: ${fw}`),
+      ...tools.map(tool => `ツール: ${tool}`),
+      `アーキテクチャファイル数: ${architectureFiles.length}個`
+    ]
+
+    return {
+      title: 'どのようにアプローチしたか',
+      content,
+      bullets
+    }
+  }
+
+  private generateResultSection(repo: RepositoryData): StorySection {
+    // const recentCommits = repo.commits.slice(0, 10)
+    const lastCommitDate = new Date(repo.updatedAt)
+    const daysSinceUpdate = Math.floor((Date.now() - lastCommitDate.getTime()) / (1000 * 60 * 60 * 24))
+
+    let content = ''
+    let bullets = []
+
+    if (daysSinceUpdate < 7) {
+      content = 'プロジェクトは活発に開発が続けられており、'
+    } else if (daysSinceUpdate < 30) {
+      content = 'プロジェクトは定期的に更新されており、'
+    } else {
+      content = 'プロジェクトは安定した状態に達しており、'
+    }
+
+    const hasReadme = repo.readme.length > 0
+    if (hasReadme) {
+      content += '充実したドキュメントとともに'
+    }
+
+    if (repo.stars > 10) {
+      content += `GitHubで${repo.stars}個のスターを獲得するなど、`
+    }
+
+    content += '良好な成果を上げています。'
+
+    bullets = [
+      `総コミット数: ${repo.commits.length}回`,
+      `最終更新: ${daysSinceUpdate}日前`,
+      `スター数: ${repo.stars}個`,
+      `フォーク数: ${repo.forks}個`
+    ]
+
+    if (hasReadme) {
+      bullets.push('詳細なREADMEを完備')
+    }
+
+    return {
+      title: '得られた結果',
+      content,
+      bullets
+    }
+  }
+
+  private generateNextSection(repo: RepositoryData): StorySection {
+    // const hasOpenIssues = true // This would need GitHub API to get actual issues
+    const needsTests = !repo.files.some(file => file.path.includes('test'))
+    const needsDocs = repo.files.filter(file => file.type === 'markdown').length < 3
+
+    let content = '今後の展開として、'
+    let bullets = []
+
+    if (needsTests) {
+      content += 'テストカバレッジの向上、'
+      bullets.push('テスト自動化の強化')
+    }
+
+    if (needsDocs) {
+      content += 'ドキュメントの拡充、'
+      bullets.push('API ドキュメントの整備')
+    }
+
+    content += 'パフォーマンス最適化やユーザビリティの改善に取り組む予定です。'
+
+    bullets.push(
+      '継続的インテグレーションの改善',
+      'セキュリティ監査の実施',
+      'コミュニティからのフィードバック対応'
+    )
+
+    if (repo.forks > 5) {
+      bullets.push('オープンソースコミュニティとの連携強化')
+    }
+
+    return {
+      title: '次のステップ',
+      content,
+      bullets
+    }
+  }
+
+  private detectFrameworks(repo: RepositoryData): string[] {
+    const frameworks = []
+    const dependencies = repo.dependencies.map(dep => dep.name.toLowerCase())
+    const packageNames = dependencies.join(' ')
+
+    if (packageNames.includes('react')) frameworks.push('React')
+    if (packageNames.includes('vue')) frameworks.push('Vue.js')
+    if (packageNames.includes('angular')) frameworks.push('Angular')
+    if (packageNames.includes('express')) frameworks.push('Express.js')
+    if (packageNames.includes('django')) frameworks.push('Django')
+    if (packageNames.includes('flask')) frameworks.push('Flask')
+    if (packageNames.includes('spring')) frameworks.push('Spring')
+    if (packageNames.includes('rails')) frameworks.push('Ruby on Rails')
+
+    return frameworks
+  }
+
+  private detectTools(repo: RepositoryData): string[] {
+    const tools = []
+    const dependencies = repo.dependencies.map(dep => dep.name.toLowerCase())
+    const files = repo.files.map(file => file.path.toLowerCase())
+    const allText = [...dependencies, ...files].join(' ')
+
+    if (allText.includes('webpack')) tools.push('Webpack')
+    if (allText.includes('vite')) tools.push('Vite')
+    if (allText.includes('docker')) tools.push('Docker')
+    if (allText.includes('jest')) tools.push('Jest')
+    if (allText.includes('eslint')) tools.push('ESLint')
+    if (allText.includes('prettier')) tools.push('Prettier')
+    if (allText.includes('typescript')) tools.push('TypeScript')
+
+    return tools
+  }
+}
