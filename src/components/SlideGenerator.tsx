@@ -19,7 +19,7 @@ export default function SlideGenerator() {
   const [language, setLanguage] = useState<'ja' | 'en' | 'zh'>('ja')
   const [showLLMPanel, setShowLLMPanel] = useState(false)
   const [repositoryData, setRepositoryData] = useState<RepositoryData | null>(null)
-  const [storyData, setStoryData] = useState<StoryStructure | null>(null)
+  const [_storyData, setStoryData] = useState<StoryStructure | null>(null)
 
   const generateSlides = async () => {
     if (!repositoryUrl.trim()) return

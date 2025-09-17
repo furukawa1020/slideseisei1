@@ -86,7 +86,7 @@ export class StoryGeneratorService {
     return patterns
   }
 
-  private analyzeTechStack(files: any[], dependencies: any[], primaryLanguage: string) {
+  private analyzeTechStack(files: any[], _dependencies: any[], _primaryLanguage: string) {
     const stack = {
       frontend: [],
       backend: [],
@@ -254,7 +254,7 @@ export class StoryGeneratorService {
     return 'software_project'
   }
 
-  private identifyUniqueFeatures(files: any[], dependencies: any[], readme: string) {
+  private identifyUniqueFeatures(files: any[], _dependencies: any[], readme: string) {
     const features = []
     
     // Technology-specific features
@@ -315,7 +315,7 @@ export class StoryGeneratorService {
     return challenges.length > 0 ? challenges : ['Standard software development challenges']
   }
 
-  private generateWhySection(repo: RepositoryData, language: 'ja' | 'en' | 'zh', insights: any): StorySection {
+  private generateWhySection(repo: RepositoryData, _language: 'ja' | 'en' | 'zh', _insights: any): StorySection {
     const { projectPurpose } = repo
     
     if (projectPurpose) {
@@ -342,6 +342,11 @@ ${projectPurpose.marketContext}という時代背景の中で、このプロジ�
 **技術的根拠**
 • ${projectPurpose.technicalEvidence.join('\n• ')}
         `,
+        bullets: [
+          '市場背景の重要性',
+          '技術的根拠の明確化', 
+          'ターゲットユーザーのニーズ把握'
+        ],
         visualElements: [
           { type: 'engaging-question', data: engagingQuestion },
           { type: 'problem-solution', data: projectPurpose.problemSolved },
@@ -394,7 +399,7 @@ ${projectPurpose.marketContext}という時代背景の中で、このプロジ�
     }
   }
 
-  private generateProblemSection(repo: RepositoryData, language: 'ja' | 'en' | 'zh', insights: any): StorySection {
+  private generateProblemSection(repo: RepositoryData, _language: 'ja' | 'en' | 'zh', _insights: any): StorySection {
     const hasTests = repo.files.some(file => file.path.includes('test') || file.path.includes('spec'))
     const hasDocs = repo.files.some(file => file.path.includes('doc') || file.type === 'markdown')
     const commitCount = repo.commits.length

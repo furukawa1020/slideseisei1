@@ -44,12 +44,6 @@ export const EnhancedEngagingSlideElements: React.FC<EnhancedEngagingSlideElemen
   }
 
   const renderElement = (element: VisualElement, index: number) => {
-    const baseStyle = {
-      fontFamily: selectedTheme.typography.body.fontFamily || 'Inter, system-ui, sans-serif',
-      background: selectedTheme.colors.surface,
-      color: selectedTheme.colors.text.primary
-    }
-
     switch (element.type) {
       case 'engaging-question':
         return (
@@ -485,24 +479,6 @@ export const EnhancedEngagingSlideElements: React.FC<EnhancedEngagingSlideElemen
   return (
     <div className="enhanced-engaging-elements space-y-8">
       {elements.map((element, index) => renderElement(element, index))}
-      
-      {/* カスタムスタイルの挿入 */}
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.5; }
-          50% { opacity: 1; }
-        }
-        
-        .enhanced-engaging-elements {
-          font-family: ${selectedTheme.typography.body.fontFamily || 'Inter, system-ui, sans-serif'};
-        }
-        
-        .enhanced-engaging-elements h1,
-        .enhanced-engaging-elements h2,
-        .enhanced-engaging-elements h3 {
-          letter-spacing: ${selectedTheme.typography.title.letterSpacing || '-0.02em'};
-        }
-      `}</style>
     </div>
   )
 }

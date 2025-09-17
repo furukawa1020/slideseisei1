@@ -1,4 +1,4 @@
-import { RepositoryData, FileData, CommitData, Dependency } from '../types'
+import { RepositoryData, Dependency } from '../types'
 
 export class RepositoryAnalysisEngine {
   async analyzeRepository(githubUrl: string): Promise<RepositoryData> {
@@ -44,7 +44,7 @@ export class RepositoryAnalysisEngine {
   }
 
   private generateSmartDescription(repo: RepositoryData): string {
-    const { name, language, files, readme } = repo
+    const { name, language, readme } = repo
     
     // If README exists and has content, extract description
     if (readme && readme.length > 50) {
@@ -85,7 +85,7 @@ export class RepositoryAnalysisEngine {
     architecture: string
     challenges: string[]
   } {
-    const { name, language, files, dependencies, readme } = repo
+    const { name, files, dependencies } = repo
     const repoName = name.toLowerCase()
     
     // Analyze tech stack

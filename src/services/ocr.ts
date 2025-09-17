@@ -1,4 +1,4 @@
-import { createWorker, Worker } from 'tesseract.js'
+import { createWorker, Worker, PSM, OEM } from 'tesseract.js'
 import { ImageData } from '../types'
 
 export class OCRService {
@@ -15,8 +15,8 @@ export class OCRService {
       })
       
       await this.worker.setParameters({
-        tessedit_pageseg_mode: 1,
-        tessedit_ocr_engine_mode: 1
+        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+        tessedit_ocr_engine_mode: OEM.LSTM_ONLY
       })
       
       this.isInitialized = true

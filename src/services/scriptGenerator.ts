@@ -25,7 +25,7 @@ export interface SpeakerNote {
   type: 'opening' | 'explanation' | 'emphasis' | 'transition' | 'interaction' | 'conclusion'
   content: string
   timing: number // 秒数
-  tone: 'confident' | 'enthusiastic' | 'thoughtful' | 'urgent' | 'friendly'
+  tone: 'confident' | 'enthusiastic' | 'thoughtful' | 'urgent' | 'friendly' | 'empathetic' | 'inspiring'
   gestures?: string[]
   pauseAfter?: number
 }
@@ -65,14 +65,14 @@ class PresentationScriptGenerator {
   generateScript(
     storyData: { why: StorySection; approach: StorySection; result: StorySection; next: StorySection },
     repoData: RepositoryData,
-    duration: 3 | 5,
-    audience: 'technical' | 'business' | 'general'
+    _duration: 3 | 5,
+    _audience: 'technical' | 'business' | 'general'
   ): PresentationScript {
     const sections = [
-      this.generateOpeningScript(storyData.why, repoData, audience),
-      this.generateApproachScript(storyData.approach, repoData, audience),
-      this.generateResultScript(storyData.result, repoData, audience),
-      this.generateFutureScript(storyData.next, repoData, audience)
+      this.generateOpeningScript(storyData.why, repoData, _audience),
+      this.generateApproachScript(storyData.approach, repoData, _audience),
+      this.generateResultScript(storyData.result, repoData, _audience),
+      this.generateFutureScript(storyData.next, repoData, _audience)
     ]
 
     const totalDuration = sections.reduce((sum, section) => sum + section.timing.estimatedDuration, 0)
@@ -82,7 +82,7 @@ class PresentationScriptGenerator {
       sections,
       totalDuration,
       difficulty: this.assessDifficulty(repoData),
-      audience
+      audience: _audience
     }
   }
 
@@ -90,7 +90,7 @@ class PresentationScriptGenerator {
   private generateOpeningScript(
     whySection: StorySection,
     repoData: RepositoryData,
-    audience: string
+    _audience: string
   ): ScriptSection {
     const engagingQuestion = whySection.visualElements?.[0]?.data || 'なぜこのプロジェクトが必要なのでしょうか？'
     
@@ -171,8 +171,8 @@ class PresentationScriptGenerator {
   // アプローチ原稿生成
   private generateApproachScript(
     approachSection: StorySection,
-    repoData: RepositoryData,
-    audience: string
+    _repoData: RepositoryData,
+    _audience: string
   ): ScriptSection {
     const techStack = approachSection.visualElements?.find(e => e.type === 'tech-stack')?.data
     
@@ -236,8 +236,8 @@ class PresentationScriptGenerator {
   // 結果原稿生成
   private generateResultScript(
     resultSection: StorySection,
-    repoData: RepositoryData,
-    audience: string
+    _repoData: RepositoryData,
+    _audience: string
   ): ScriptSection {
     const metrics = resultSection.visualElements?.find(e => e.type === 'metrics')?.data
     
@@ -297,11 +297,10 @@ class PresentationScriptGenerator {
   // 未来展望原稿生成
   private generateFutureScript(
     nextSection: StorySection,
-    repoData: RepositoryData,
-    audience: string
+    _repoData: RepositoryData,
+    _audience: string
   ): ScriptSection {
     const futureVision = nextSection.visualElements?.find(e => e.type === 'future-vision')?.data
-    const roadmap = nextSection.visualElements?.find(e => e.type === 'roadmap')?.data || []
     
     const speakerNotes: SpeakerNote[] = [
       {

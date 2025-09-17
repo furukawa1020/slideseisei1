@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { llmAgent } from '../services/llmAgent'
 
+import { SlidePresentation } from '../types'
+
 interface LLMEnhancementPanelProps {
-  content: string
-  onEnhanced: (enhancedContent: string) => void
-  language: 'ja' | 'en' | 'zh'
+  presentation: SlidePresentation
+  onEnhanced: (enhancedPresentation: SlidePresentation) => void
+  onClose: () => void
 }
 
-export default function LLMEnhancementPanel({ content, onEnhanced, language }: LLMEnhancementPanelProps) {
+export default function LLMEnhancementPanel({ presentation, onEnhanced, onClose }: LLMEnhancementPanelProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [currentContent, setCurrentContent] = useState(content)
+  const [currentContent, setCurrentContent] = useState(JSON.stringify(presentation, null, 2))
 
   const handleEnhance = async () => {
     if (!currentContent.trim()) return
@@ -24,7 +26,7 @@ export default function LLMEnhancementPanel({ content, onEnhanced, language }: L
       
       await llmAgent.initialize()
 
-      const enhanced = await llmAgent.enhanceContent(currentContent, language)
+      const enhanced = await llmAgent.enhanceContent(currentContent, presentation.language || 'ja')
       setCurrentContent(enhanced.enhancedContent)
     } catch (error) {
       console.error('Enhancement failed:', error)
@@ -35,7 +37,13 @@ export default function LLMEnhancementPanel({ content, onEnhanced, language }: L
   }
 
   const handleApply = () => {
-    onEnhanced(currentContent)
+    try {
+      const enhancedPresentation = JSON.parse(currentContent) as SlidePresentation
+      onEnhanced(enhancedPresentation)
+      onClose()
+    } catch (error) {
+      alert('Invalid JSON format. Please check the content.')
+    }
   }
 
   return (

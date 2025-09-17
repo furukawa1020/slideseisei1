@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { PresentationScript, ScriptSection, SpeakerNote } from '../services/scriptGenerator'
+import { PresentationScript, SpeakerNote } from '../services/scriptGenerator'
 
 interface PresentationScriptViewerProps {
   script: PresentationScript

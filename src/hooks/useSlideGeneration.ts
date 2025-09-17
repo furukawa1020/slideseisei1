@@ -4,7 +4,7 @@ import { storyGenerator } from '../services/storyGenerator'
 import { slideGeneratorService } from '../services/slideGenerator'
 import { exportService } from '../services/export'
 import { storageService } from '../services/storage'
-import { RepositoryData, SlidePresentation, AnalysisProgress, ExportConfig } from '../types'
+import { SlidePresentation, AnalysisProgress, ExportConfig } from '../types'
 
 interface UseSlideGenerationOptions {
   repoUrl: string
@@ -57,7 +57,7 @@ export function useSlideGeneration() {
       // Step 3: Slide Generation
       const slidePresentation = slideGeneratorService.generatePresentation(
         repositoryData,
-        storyStructure,
+        await storyStructure,
         options.mode,
         options.duration,
         options.language
@@ -122,7 +122,7 @@ export function useSlideGeneration() {
     try {
       const savedPresentation = await storageService.getPresentation(id)
       if (savedPresentation) {
-        setPresentation(savedPresentation)
+        setPresentation(savedPresentation.presentationData)
         return savedPresentation
       }
       throw new Error('プレゼンテーションが見つかりませんでした')
@@ -135,7 +135,7 @@ export function useSlideGeneration() {
 
   const getSavedPresentations = async () => {
     try {
-      return await storageService.listPresentations()
+      return await storageService.getAllPresentations()
     } catch (err) {
       console.error('Failed to get saved presentations:', err)
       return []

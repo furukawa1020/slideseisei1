@@ -326,7 +326,7 @@ export const getEmotionalColors = (emotion: string, intensity: 'low' | 'medium' 
 }
 
 // アクセシビリティ対応色彩チェック
-export const checkColorContrast = (foreground: string, background: string): {
+export const checkColorContrast = (_foreground: string, _background: string): {
   ratio: number
   wcagAA: boolean
   wcagAAA: boolean
