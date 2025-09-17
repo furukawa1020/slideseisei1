@@ -1,316 +1,349 @@
 import { useState } from 'react'
-import { useSlideGeneration } from '../hooks/useSlideGeneration'
+import { SlideGeneratorService } from '../services/slideGenerator'
+import { repositoryAnalysisEngine } from '../services/repositoryAnalysis'
+import { storyGenerator } from '../services/storyGenerator'
+import { exportService } from '../services/export'
 import LLMEnhancementPanel from './LLMEnhancementPanel'
+import { SlidePresentation, RepositoryData, StoryStructure } from '../types'
 
-export function SlideGenerator() {
-  const [repoUrl, setRepoUrl] = useState('')
+const slideGeneratorService = new SlideGeneratorService()
+
+export default function SlideGenerator() {
+  const [repositoryUrl, setRepositoryUrl] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [presentation, setPresentation] = useState<SlidePresentation | null>(null)
+  const [currentSlide, setCurrentSlide] = useState(0)
   const [mode, setMode] = useState<'ted' | 'imrad'>('ted')
-  const [duration, setDuration] = useState<3 | 5>(5)
+  const [duration, setDuration] = useState<3 | 5>(3)
   const [language, setLanguage] = useState<'ja' | 'en' | 'zh'>('ja')
-  const [githubToken, setGithubToken] = useState(localStorage.getItem('github_token') || '')
-  const [enableLLMEnhancement, setEnableLLMEnhancement] = useState(false)
   const [showLLMPanel, setShowLLMPanel] = useState(false)
-  const [currentContent, setCurrentContent] = useState('')
+  const [repositoryData, setRepositoryData] = useState<RepositoryData | null>(null)
+  const [storyData, setStoryData] = useState<StoryStructure | null>(null)
 
-  const {
-    isGenerating,
-    progress,
-    presentation,
-    error,
-    generateSlides,
-    exportPresentation,
-    resetGeneration
-  } = useSlideGeneration()
+  const generateSlides = async () => {
+    if (!repositoryUrl.trim()) return
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!repoUrl.trim()) return
-
+    setIsGenerating(true)
     try {
-      await generateSlides({
-        repoUrl,
+      console.log('Analyzing repository:', repositoryUrl)
+      
+      // Step 1: Analyze repository
+      const repoData = await repositoryAnalysisEngine.analyzeRepository(repositoryUrl)
+      setRepositoryData(repoData)
+      console.log('Repository analysis complete:', repoData)
+      
+      // Step 2: Generate story structure
+      const story = await storyGenerator.generateStory(repoData, mode, language)
+      setStoryData(story)
+      console.log('Story generation complete:', story)
+      
+      // Step 3: Generate presentation slides
+      const slidePresentation = slideGeneratorService.generatePresentation(
+        repoData,
+        story,
         mode,
         duration,
-        language,
-        githubToken: githubToken || undefined,
-        enableLLMEnhancement
-      })
-    } catch (err) {
-      console.error('Slide generation failed:', err)
+        language
+      )
+      
+      setPresentation(slidePresentation)
+      setCurrentSlide(0)
+      console.log('Slide generation complete:', slidePresentation)
+      
+    } catch (error) {
+      console.error('Slide generation failed:', error)
+      alert(`スライド生成に失敗しました: ${error}`)
+    } finally {
+      setIsGenerating(false)
     }
   }
 
-  const saveGithubToken = () => {
-    localStorage.setItem('github_token', githubToken)
-    alert('GitHub token saved!')
+  const exportToPDF = async () => {
+    if (!presentation) return
+    try {
+      const config = { 
+        format: 'pdf' as const, 
+        theme: 'default',
+        includeNotes: false,
+        quality: 'medium' as const 
+      }
+      await exportService.exportToPDF(presentation, config)
+      alert('PDF export completed!')
+    } catch (error) {
+      console.error('PDF export failed:', error)
+      alert('PDF出力に失敗しました')
+    }
   }
 
-  const handleLLMEnhancement = (enhancedContent: string) => {
-    setCurrentContent(enhancedContent)
+  const exportToPPTX = async () => {
+    if (!presentation) return
+    try {
+      const config = { 
+        format: 'pptx' as const, 
+        theme: 'default',
+        includeNotes: false,
+        quality: 'medium' as const 
+      }
+      await exportService.exportToPowerPoint(presentation, config)
+      alert('PowerPoint export completed!')
+    } catch (error) {
+      console.error('PPTX export failed:', error)
+      alert('PowerPoint出力に失敗しました')
+    }
+  }
+
+  const viewPresentation = () => {
+    if (!presentation) return
+    
+    const presentationHtml = slideGeneratorService.renderSlides(presentation)
+    const newWindow = window.open('', '_blank')
+    if (newWindow) {
+      newWindow.document.write(presentationHtml)
+      newWindow.document.close()
+    }
+  }
+
+  const enhanceWithLLM = () => {
+    if (!presentation) return
+    setShowLLMPanel(true)
+  }
+
+  const handleEnhancedContent = (enhancedPresentation: SlidePresentation) => {
+    setPresentation(enhancedPresentation)
     setShowLLMPanel(false)
   }
 
+  const nextSlide = () => {
+    if (!presentation) return
+    setCurrentSlide((prev) => (prev + 1) % presentation.slides.length)
+  }
+
+  const prevSlide = () => {
+    if (!presentation) return
+    setCurrentSlide((prev) => (prev - 1 + presentation.slides.length) % presentation.slides.length)
+  }
+
+  const currentSlideData = presentation?.slides[currentSlide]
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-extrabold text-slate-900 mb-6 tracking-tight">
-            Repo2Talk
-          </h1>
-          <p className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Transform your GitHub repositories into compelling presentation slides with AI-powered content generation
-          </p>
-        </div>
+    <div className="max-w-6xl mx-auto p-6 space-y-8">
+      {/* Header */}
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+          Repo2Talk
+        </h1>
+        <p className="text-xl text-gray-600">
+          Transform GitHub repositories into compelling presentations
+        </p>
+      </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        {/* Configuration Panel */}
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-slate-900 to-slate-700 px-8 py-6">
-            <h2 className="text-2xl font-bold text-white">Configuration</h2>
-            <p className="text-slate-300 mt-1">Setup your repository and presentation preferences</p>
-          </div>
-          <div className="p-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <label htmlFor="repoUrl" className="block text-sm font-semibold text-slate-700">
-                  Repository URL
-                </label>
-                <input
-                  id="repoUrl"
-                  type="url"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all duration-200"
-                  value={repoUrl}
-                  onChange={(e) => setRepoUrl(e.target.value)}
-                  placeholder="https://github.com/username/repository"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="githubToken" className="block text-sm font-semibold text-slate-700">
-                  GitHub Token
-                  <span className="text-slate-500 font-normal ml-1">(Optional)</span>
-                </label>
-                <div className="flex gap-3">
-                  <input
-                    id="githubToken"
-                    type="password"
-                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all duration-200"
-                    value={githubToken}
-                    onChange={(e) => setGithubToken(e.target.value)}
-                    placeholder="ghp_xxxxxxxxxxxxx"
-                  />
-                  <button 
-                    type="button" 
-                    className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors duration-200 font-medium" 
-                    onClick={saveGithubToken}
-                  >
-                    Save
-                  </button>
-                </div>
-                <p className="text-sm text-slate-500">
-                  Increases API rate limits from 60 to 5,000 requests per hour
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="mode" className="block text-sm font-semibold text-slate-700">Presentation Style</label>
-                  <select
-                    id="mode"
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all duration-200"
-                    value={mode}
-                    onChange={(e) => setMode(e.target.value as 'ted' | 'imrad')}
-                  >
-                    <option value="ted">TED Style</option>
-                    <option value="imrad">IMRAD Academic</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="duration" className="block text-sm font-semibold text-slate-700">Duration</label>
-                  <select
-                    id="duration"
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all duration-200"
-                    value={duration}
-                    onChange={(e) => setDuration(parseInt(e.target.value) as 3 | 5)}
-                  >
-                    <option value={3}>3 minutes</option>
-                    <option value={5}>5 minutes</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="language" className="block text-sm font-semibold text-slate-700">Language</label>
-                <select
-                  id="language"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all duration-200"
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value as 'ja' | 'en' | 'zh')}
-                >
-                  <option value="ja">Japanese</option>
-                  <option value="en">English</option>
-                  <option value="zh">Chinese</option>
-                </select>
-              </div>
-
-              <div className="flex items-center space-x-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <input
-                  type="checkbox"
-                  id="enableLLM"
-                  checked={enableLLMEnhancement}
-                  onChange={(e) => setEnableLLMEnhancement(e.target.checked)}
-                  className="w-4 h-4 text-slate-600 bg-white border-slate-300 rounded focus:ring-slate-500 focus:ring-2"
-                />
-                <label htmlFor="enableLLM" className="text-sm font-medium text-slate-700">
-                  Enable AI content enhancement
-                </label>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-gradient-to-r from-slate-900 to-slate-700 hover:from-slate-800 hover:to-slate-600 text-white font-semibold py-4 px-8 rounded-xl transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg"
-                disabled={isGenerating}
-              >
-                {isGenerating ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Generating Slides...</span>
-                  </div>
-                ) : (
-                  'Generate Presentation'
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {/* Progress & Results Panel */}
+      {/* Input Section */}
+      <div className="bg-white rounded-lg shadow-lg p-6">
         <div className="space-y-6">
-          {progress && (
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6">
-                <h3 className="text-xl font-bold text-white">Generation Progress</h3>
-              </div>
-              <div className="p-8">
-                <div className="mb-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-slate-700">Progress</span>
-                    <span className="text-sm font-medium text-slate-700">{progress.progress}%</span>
-                  </div>
-                  <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
-                    <div 
-                      className="bg-gradient-to-r from-blue-500 to-blue-600 h-full rounded-full transition-all duration-500 ease-out"
-                      style={{ width: `${progress.progress}%` }}
-                    ></div>
-                  </div>
-                </div>
-                <p className="text-slate-600 font-medium">{progress.message}</p>
-                {progress.error && (
-                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
-                    <p className="text-red-700 font-medium">{progress.error}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          <div>
+            <label htmlFor="repo-url" className="block text-sm font-medium text-gray-700 mb-2">
+              GitHub Repository URL
+            </label>
+            <input
+              id="repo-url"
+              type="url"
+              value={repositoryUrl}
+              onChange={(e) => setRepositoryUrl(e.target.value)}
+              placeholder="https://github.com/owner/repository"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
 
-          {error && (
-            <div className="bg-white rounded-2xl shadow-xl border border-red-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-red-600 to-red-700 px-8 py-6">
-                <h4 className="text-xl font-bold text-white">Generation Failed</h4>
-              </div>
-              <div className="p-8">
-                <p className="text-red-700 mb-6">{error}</p>
-                <button 
-                  className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors duration-200 font-medium" 
-                  onClick={resetGeneration}
-                >
-                  Try Again
-                </button>
-              </div>
+          {/* Configuration Options */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Presentation Mode
+              </label>
+              <select
+                value={mode}
+                onChange={(e) => setMode(e.target.value as 'ted' | 'imrad')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="ted">TED Style</option>
+                <option value="imrad">IMRAD (Academic)</option>
+              </select>
             </div>
-          )}
 
-          {presentation && (
-            <div className="bg-white rounded-2xl shadow-xl border border-green-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-green-600 to-green-700 px-8 py-6">
-                <h3 className="text-xl font-bold text-white">Presentation Generated Successfully</h3>
-              </div>
-              <div className="p-8">
-                <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-                  <div className="space-y-2">
-                    <p className="text-slate-500 font-medium">Repository</p>
-                    <p className="text-slate-800 font-semibold">{presentation.repository.name}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-slate-500 font-medium">Slides</p>
-                    <p className="text-slate-800 font-semibold">{presentation.slides.length}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-slate-500 font-medium">Style</p>
-                    <p className="text-slate-800 font-semibold">{presentation.mode.toUpperCase()}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-slate-500 font-medium">Language</p>
-                    <p className="text-slate-800 font-semibold">{presentation.language.toUpperCase()}</p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    className="bg-gradient-to-r from-slate-900 to-slate-700 hover:from-slate-800 hover:to-slate-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105"
-                    onClick={() => window.open(`/viewer/${presentation.id}`, '_blank')}
-                  >
-                    View Presentation
-                  </button>
-                  <button
-                    className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105"
-                    onClick={() => setShowLLMPanel(true)}
-                  >
-                    AI Enhance
-                  </button>
-                  <button
-                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105"
-                    onClick={() => exportPresentation({ 
-                      format: 'pdf',
-                      theme: 'default',
-                      includeNotes: false,
-                      quality: 'high'
-                    })}
-                  >
-                    Export PDF
-                  </button>
-                  <button
-                    className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105"
-                    onClick={() => exportPresentation({ 
-                      format: 'pptx',
-                      theme: 'default',
-                      includeNotes: false,
-                      quality: 'high'
-                    })}
-                  >
-                    Export PPTX
-                  </button>
-                </div>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Duration
+              </label>
+              <select
+                value={duration}
+                onChange={(e) => setDuration(parseInt(e.target.value) as 3 | 5)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={3}>3 minutes</option>
+                <option value={5}>5 minutes</option>
+              </select>
             </div>
-          )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Language
+              </label>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as 'ja' | 'en' | 'zh')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="ja">日本語</option>
+                <option value="en">English</option>
+                <option value="zh">中文</option>
+              </select>
+            </div>
+          </div>
+
+          <button
+            onClick={generateSlides}
+            disabled={isGenerating || !repositoryUrl.trim()}
+            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2"
+          >
+            {isGenerating ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <span>Generating slides...</span>
+              </>
+            ) : (
+              <span>Generate Presentation</span>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* AI Enhancement Panel */}
-      {showLLMPanel && (
-        <div className="mt-8">
-          <LLMEnhancementPanel
-            content={currentContent}
-            onEnhanced={handleLLMEnhancement}
-            language={language}
-          />
+      {/* Generated Slides Preview */}
+      {presentation && (
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800">
+              Generated Presentation
+            </h2>
+            <div className="flex space-x-2">
+              <button
+                onClick={enhanceWithLLM}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              >
+                Enhance with AI
+              </button>
+              <button
+                onClick={viewPresentation}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                View Presentation
+              </button>
+              <button
+                onClick={exportToPDF}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+              >
+                Export PDF
+              </button>
+              <button
+                onClick={exportToPPTX}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors"
+              >
+                Export PPTX
+              </button>
+            </div>
+          </div>
+
+          {/* Slide Preview */}
+          {currentSlideData && (
+            <div className="border rounded-lg p-6 mb-4 bg-gray-50">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  {currentSlideData.title}
+                </h3>
+                <span className="text-sm text-gray-500">
+                  Slide {currentSlide + 1} of {presentation.slides.length}
+                </span>
+              </div>
+              
+              <div className="prose max-w-none">
+                <p className="text-gray-700 mb-4 whitespace-pre-line">
+                  {currentSlideData.content}
+                </p>
+                
+                {currentSlideData.bullets && currentSlideData.bullets.length > 0 && (
+                  <ul className="list-disc list-inside space-y-2 text-gray-700">
+                    {currentSlideData.bullets.map((bullet, index) => (
+                      <li key={index}>{bullet}</li>
+                    ))}
+                  </ul>
+                )}
+                
+                {currentSlideData.code && (
+                  <div className="mt-4 p-4 bg-gray-900 rounded-lg">
+                    <pre className="text-green-400 text-sm overflow-x-auto">
+                      <code>{currentSlideData.code.code}</code>
+                    </pre>
+                    <p className="text-gray-300 text-xs mt-2">
+                      {currentSlideData.code.explanation}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Navigation Controls */}
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={prevSlide}
+              disabled={!presentation || presentation.slides.length <= 1}
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-300 text-white rounded-lg transition-colors"
+            >
+              Previous
+            </button>
+            <button
+              onClick={nextSlide}
+              disabled={!presentation || presentation.slides.length <= 1}
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-300 text-white rounded-lg transition-colors"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
-      </div>
+
+      {/* LLM Enhancement Panel */}
+      {showLLMPanel && presentation && (
+        <LLMEnhancementPanel
+          presentation={presentation}
+          onEnhanced={handleEnhancedContent}
+          onClose={() => setShowLLMPanel(false)}
+        />
+      )}
+
+      {/* Status Information */}
+      {repositoryData && (
+        <div className="bg-blue-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-blue-800 mb-2">Repository Analysis</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <span className="text-blue-600 font-medium">Language:</span>
+              <span className="ml-2">{repositoryData.language}</span>
+            </div>
+            <div>
+              <span className="text-blue-600 font-medium">Stars:</span>
+              <span className="ml-2">{repositoryData.stars}</span>
+            </div>
+            <div>
+              <span className="text-blue-600 font-medium">Files:</span>
+              <span className="ml-2">{repositoryData.files.length}</span>
+            </div>
+            <div>
+              <span className="text-blue-600 font-medium">Commits:</span>
+              <span className="ml-2">{repositoryData.commits.length}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

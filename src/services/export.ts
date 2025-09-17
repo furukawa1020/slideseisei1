@@ -356,3 +356,6 @@ export class ExportService {
     ]
   }
 }
+
+// Export singleton instance
+export const exportService = new ExportService()

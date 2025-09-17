@@ -3,10 +3,27 @@ import { ImageData } from '../types'
 
 export class OCRService {
   private worker: Worker | null = null
+  private isInitialized = false
 
-  async initialize() {
-    if (!this.worker) {
-      this.worker = await createWorker('jpn+eng')
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return
+
+    try {
+      console.log('Initializing OCR worker...')
+      this.worker = await createWorker('jpn+eng', 1, {
+        logger: m => console.log('OCR:', m)
+      })
+      
+      await this.worker.setParameters({
+        tessedit_pageseg_mode: 1,
+        tessedit_ocr_engine_mode: 1
+      })
+      
+      this.isInitialized = true
+      console.log('OCR worker initialized successfully')
+    } catch (error) {
+      console.error('Failed to initialize OCR worker:', error)
+      throw new Error('OCR initialization failed')
     }
   }
 
@@ -18,117 +35,105 @@ export class OCRService {
     }
 
     try {
+      console.log('Processing image with OCR...', imageFile.name)
+      
       const { data: { text, confidence } } = await this.worker.recognize(imageFile)
       
-      // Generate automatic caption based on OCR text
-      const caption = this.generateCaption(text, confidence)
+      console.log(`OCR completed with ${confidence}% confidence`)
+      
+      const cleanedText = this.cleanOCRText(text)
+      const caption = this.generateCaption(cleanedText, confidence)
       
       return {
         url: URL.createObjectURL(imageFile),
         caption,
-        ocrText: text,
-        type: this.detectImageType(text)
+        ocrText: cleanedText,
+        type: 'screenshot'
       }
     } catch (error) {
       console.error('OCR processing failed:', error)
       return {
         url: URL.createObjectURL(imageFile),
-        caption: 'Image could not be processed',
+        caption: 'Screenshot - Could not extract text content',
         ocrText: '',
-        type: 'other'
+        type: 'screenshot'
       }
     }
   }
 
   async processImageFromUrl(imageUrl: string): Promise<ImageData> {
-    await this.initialize()
-    
-    if (!this.worker) {
-      throw new Error('OCR worker not initialized')
-    }
-
     try {
-      const { data: { text, confidence } } = await this.worker.recognize(imageUrl)
-      
-      const caption = this.generateCaption(text, confidence)
-      
-      return {
-        url: imageUrl,
-        caption,
-        ocrText: text,
-        type: this.detectImageType(text)
+      const response = await fetch(imageUrl)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`)
       }
+      
+      const blob = await response.blob()
+      const file = new File([blob], 'url-image.png', { type: blob.type })
+      
+      return await this.processImage(file)
     } catch (error) {
-      console.error('OCR processing failed:', error)
+      console.error('Failed to process image from URL:', error)
       return {
         url: imageUrl,
-        caption: 'Image could not be processed',
+        caption: 'External image - Could not process',
         ocrText: '',
         type: 'other'
       }
     }
   }
 
+  private cleanOCRText(text: string): string {
+    return text
+      .replace(/[^\w\s\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
   private generateCaption(text: string, confidence: number): string {
     if (confidence < 30) {
-      return '画像に含まれるテキストが認識できませんでした'
+      return 'スクリーンショット - テキストの読み取りが困難'
     }
-    
-    const cleanText = text.trim().replace(/\n+/g, ' ').substring(0, 100)
-    
-    if (cleanText.length === 0) {
-      return '画像にテキストが含まれていません'
+
+    if (this.containsCode(text)) {
+      return 'コードスクリーンショット'
     }
-    
-    // Try to create a meaningful caption
-    if (cleanText.includes('error') || cleanText.includes('Error')) {
-      return 'エラーメッセージを示すスクリーンショット'
+
+    if (text.includes('npm') || text.includes('git') || text.includes('terminal')) {
+      return 'ターミナル実行結果のスクリーンショット'
     }
-    
-    if (cleanText.includes('import') || cleanText.includes('function') || cleanText.includes('class')) {
-      return 'ソースコードのスクリーンショット'
+
+    if (text.includes('error') || text.includes('Error')) {
+      return 'エラーメッセージのスクリーンショット'
     }
-    
-    if (cleanText.includes('npm') || cleanText.includes('yarn') || cleanText.includes('install')) {
-      return 'パッケージ管理ツールの実行画面'
+
+    if (text.length > 50) {
+      return `${text.substring(0, 50)}...のスクリーンショット`
     }
-    
-    if (cleanText.includes('test') || cleanText.includes('Test')) {
-      return 'テスト実行結果の画面'
-    }
-    
-    if (cleanText.length > 50) {
-      return `${cleanText.substring(0, 50)}...`
-    }
-    
-    return cleanText
+
+    return 'スクリーンショット'
   }
 
-  private detectImageType(text: string): 'screenshot' | 'diagram' | 'other' {
-    const lowerText = text.toLowerCase()
+  private containsCode(text: string): boolean {
+    const codePatterns = [
+      /function\s*\(/,
+      /const\s+\w+\s*=/,
+      /import\s+[\w{},\s]*\s+from/,
+      /class\s+\w+/,
+      /if\s*\(/,
+      /console\.log\s*\(/
+    ]
     
-    if (lowerText.includes('terminal') || 
-        lowerText.includes('console') || 
-        lowerText.includes('command') ||
-        lowerText.includes('npm') ||
-        lowerText.includes('git')) {
-      return 'screenshot'
-    }
-    
-    if (lowerText.includes('flow') || 
-        lowerText.includes('diagram') || 
-        lowerText.includes('chart') ||
-        lowerText.includes('architecture')) {
-      return 'diagram'
-    }
-    
-    return 'screenshot'
+    return codePatterns.some(pattern => pattern.test(text))
   }
 
-  async terminate() {
+  async terminate(): Promise<void> {
     if (this.worker) {
       await this.worker.terminate()
       this.worker = null
+      this.isInitialized = false
     }
   }
 }
+
+export const ocrService = new OCRService()
