@@ -21,11 +21,16 @@ export class StoryGeneratorService {
   }
 
   private analyzeRepositoryInsights(repo: RepositoryData) {
-    const { files, language, languages, readme, dependencies, commits } = repo
+    const { files, language, languages, readme, dependencies, commits, 
+            languageStats, architectureAnalysis, designPatterns, frameworkAnalysis } = repo
     
-    // Technical analysis
-    const techStack = this.analyzeTechStack(files, dependencies, language)
-    const architecture = this.analyzeArchitecture(files)
+    // Use enhanced analysis if available
+    const techStack = frameworkAnalysis ? this.formatTechStackFromAnalysis(frameworkAnalysis) 
+                                       : this.analyzeTechStack(files, dependencies, language)
+    const architecture = architectureAnalysis?.pattern || this.analyzeArchitecture(files)
+    const patterns = designPatterns || this.extractDesignPatterns(files)
+    const langDistribution = languageStats || this.analyzeLangDistribution(languages)
+    
     const complexity = this.analyzeComplexity(files, languages, commits)
     const maturity = this.analyzeProjectMaturity(repo)
     
@@ -37,12 +42,48 @@ export class StoryGeneratorService {
     return {
       techStack,
       architecture,
+      patterns,
+      langDistribution,
       complexity,
       maturity,
       purpose,
       uniqueFeatures,
-      challenges
+      challenges,
+      frameworkBreakdown: frameworkAnalysis
     }
+  }
+
+  private formatTechStackFromAnalysis(analysis: any) {
+    return {
+      frontend: analysis.frontend,
+      backend: analysis.backend,
+      database: analysis.database,
+      testing: analysis.testing,
+      tools: analysis.buildTools,
+      frameworks: [...analysis.frontend, ...analysis.backend]
+    }
+  }
+
+  private analyzeLangDistribution(languages: Record<string, number>) {
+    const total = Object.values(languages).reduce((sum, bytes) => sum + bytes, 0)
+    return Object.entries(languages).map(([lang, bytes]) => ({
+      language: lang,
+      percentage: Math.round((bytes / total) * 100)
+    })).sort((a, b) => b.percentage - a.percentage)
+  }
+
+  private extractDesignPatterns(files: any[]) {
+    const patterns: string[] = []
+    const paths = files.map(f => f.path).join(' ').toLowerCase()
+    
+    if (paths.includes('factory')) patterns.push('Factory Pattern')
+    if (paths.includes('observer') || paths.includes('event')) patterns.push('Observer Pattern')
+    if (paths.includes('singleton')) patterns.push('Singleton Pattern')
+    if (paths.includes('repository')) patterns.push('Repository Pattern')
+    if (paths.includes('service')) patterns.push('Service Pattern')
+    if (paths.includes('hook') || paths.includes('use')) patterns.push('Hooks Pattern')
+    
+    return patterns
   }
 
   private analyzeTechStack(files: any[], dependencies: any[], primaryLanguage: string) {
@@ -275,6 +316,43 @@ export class StoryGeneratorService {
   }
 
   private generateWhySection(repo: RepositoryData, language: 'ja' | 'en' | 'zh', insights: any): StorySection {
+    const { projectPurpose } = repo
+    
+    if (projectPurpose) {
+      // 引き込む質問から始める
+      const engagingQuestion = projectPurpose.engagingQuestions[0] || 'このプロジェクトの背景について考えてみましょう'
+      
+      return {
+        title: '🎯 なぜこのプロジェクトが生まれたのか',
+        content: `
+**${engagingQuestion}**
+
+**市場の課題認識**
+${projectPurpose.problemSolved}
+
+**対象ユーザーのニーズ**
+${projectPurpose.targetAudience}に向けて、従来のソリューションでは解決できない課題に取り組みました。
+
+**提供価値の明確化**
+${projectPurpose.businessValue}
+
+**市場背景**
+${projectPurpose.marketContext}という時代背景の中で、このプロジェクトの必要性が高まりました。
+
+**技術的根拠**
+• ${projectPurpose.technicalEvidence.join('\n• ')}
+        `,
+        visualElements: [
+          { type: 'engaging-question', data: engagingQuestion },
+          { type: 'problem-solution', data: projectPurpose.problemSolved },
+          { type: 'target-audience', data: projectPurpose.targetAudience },
+          { type: 'market-context', data: projectPurpose.marketContext },
+          { type: 'visualization-suggestions', data: projectPurpose.visualizationSuggestions }
+        ]
+      }
+    }
+    
+    // Fallback logic
     const primaryLanguage = repo.language
     const isSpecialProject = repo.name === 'notenkyo'
 
@@ -363,7 +441,8 @@ export class StoryGeneratorService {
     }
   }
 
-  private generateApproachSection(repo: RepositoryData, language: 'ja' | 'en' | 'zh', insights: any): StorySection {
+  private generateApproachSection(repo: RepositoryData, _language: 'ja' | 'en' | 'zh', _insights: any): StorySection {
+    const { projectPurpose } = repo
     const architectureFiles = repo.files.filter(file => 
       file.path.includes('config') || 
       file.path.includes('src') ||
@@ -373,7 +452,13 @@ export class StoryGeneratorService {
     const frameworks = this.detectFrameworks(repo)
     const tools = this.detectTools(repo)
 
-    let content = `${repo.language}をベースとして、`
+    // 引き込む質問
+    const engagingQuestion = projectPurpose?.engagingQuestions[1] || '技術選択の背景は何でしょうか？'
+
+    let content = `**${engagingQuestion}**
+
+**技術選択の戦略**
+${repo.language}をベースとして、`
     
     if (frameworks.length > 0) {
       content += `${frameworks.join('、')}などのフレームワークを活用し、`
@@ -393,26 +478,35 @@ export class StoryGeneratorService {
     ]
 
     return {
-      title: 'どのようにアプローチしたか',
+      title: '🛠️ どのようにアプローチしたか',
       content,
-      bullets
+      bullets,
+      visualElements: [
+        { type: 'engaging-question', data: engagingQuestion },
+        { type: 'tech-stack', data: { language: repo.language, frameworks, tools } },
+        { type: 'architecture', data: repo.architectureAnalysis }
+      ]
     }
   }
 
-  private generateResultSection(repo: RepositoryData, language: 'ja' | 'en' | 'zh', insights: any): StorySection {
-    // const recentCommits = repo.commits.slice(0, 10)
+  private generateResultSection(repo: RepositoryData, _language: 'ja' | 'en' | 'zh', _insights: any): StorySection {
+    const { projectPurpose } = repo
     const lastCommitDate = new Date(repo.updatedAt)
     const daysSinceUpdate = Math.floor((Date.now() - lastCommitDate.getTime()) / (1000 * 60 * 60 * 24))
 
-    let content = ''
-    let bullets = []
+    // 引き込む質問
+    const engagingQuestion = projectPurpose?.engagingQuestions[2] || 'このプロジェクトはどんな成果を生み出しているでしょうか？'
+
+    let content = `**${engagingQuestion}**
+
+**開発活動の成果**`
 
     if (daysSinceUpdate < 7) {
-      content = 'プロジェクトは活発に開発が続けられており、'
+      content += 'プロジェクトは活発に開発が続けられており、'
     } else if (daysSinceUpdate < 30) {
-      content = 'プロジェクトは定期的に更新されており、'
+      content += 'プロジェクトは定期的に更新されており、'
     } else {
-      content = 'プロジェクトは安定した状態に達しており、'
+      content += 'プロジェクトは安定した状態に達しており、'
     }
 
     const hasReadme = repo.readme.length > 0
@@ -426,7 +520,18 @@ export class StoryGeneratorService {
 
     content += '良好な成果を上げています。'
 
-    bullets = [
+    // 具体的な成果指標
+    if (projectPurpose) {
+      content += `
+
+**ビジネス価値の実現**
+${projectPurpose.businessValue}
+
+**技術的達成度**
+• ${projectPurpose.technicalEvidence.join('\n• ')}`
+    }
+
+    const bullets = [
       `総コミット数: ${repo.commits.length}回`,
       `最終更新: ${daysSinceUpdate}日前`,
       `スター数: ${repo.stars}個`,
@@ -438,14 +543,52 @@ export class StoryGeneratorService {
     }
 
     return {
-      title: '得られた結果',
+      title: '📈 得られた結果',
       content,
-      bullets
+      bullets,
+      visualElements: [
+        { type: 'engaging-question', data: engagingQuestion },
+        { type: 'metrics', data: { stars: repo.stars, forks: repo.forks, commits: repo.commits.length } },
+        { type: 'business-value', data: projectPurpose?.businessValue },
+        { type: 'achievements', data: projectPurpose?.technicalEvidence }
+      ]
     }
   }
 
-  private generateNextSection(repo: RepositoryData, language: 'ja' | 'en' | 'zh', insights: any): StorySection {
-    // const hasOpenIssues = true // This would need GitHub API to get actual issues
+  private generateNextSection(repo: RepositoryData, _language: 'ja' | 'en' | 'zh', _insights: any): StorySection {
+    const { projectPurpose } = repo
+    
+    if (projectPurpose && projectPurpose.futureVision) {
+      return {
+        title: '🚀 これからの展望',
+        content: `
+**ビジョン**
+${projectPurpose.futureVision}
+
+**ロードマップ**
+${projectPurpose.roadmap.map((phase, index) => `${index + 1}. ${phase}`).join('\n')}
+
+**インパクト予測**
+このプロジェクトが目指す未来では、${projectPurpose.targetAudience}の体験が根本的に変わります。
+
+**コミュニティへの貢献**
+オープンソースとしての発展を通じて、業界全体のイノベーションを推進します。`,
+        bullets: [
+          '段階的な機能拡張',
+          'ユーザーフィードバックの継続的取り込み',
+          '技術コミュニティとの連携',
+          'パートナーシップ機会の模索',
+          'グローバル展開の可能性'
+        ],
+        visualElements: [
+          { type: 'roadmap', data: projectPurpose.roadmap },
+          { type: 'future-vision', data: projectPurpose.futureVision },
+          { type: 'visualization-suggestions', data: projectPurpose.visualizationSuggestions }
+        ]
+      }
+    }
+    
+    // Fallback for other projects
     const needsTests = !repo.files.some(file => file.path.includes('test'))
     const needsDocs = repo.files.filter(file => file.type === 'markdown').length < 3
 
@@ -475,7 +618,7 @@ export class StoryGeneratorService {
     }
 
     return {
-      title: '次のステップ',
+      title: '🚀 次のステップ',
       content,
       bullets
     }

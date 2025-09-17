@@ -4,6 +4,7 @@ import { repositoryAnalysisEngine } from '../services/repositoryAnalysis'
 import { storyGenerator } from '../services/storyGenerator'
 import { exportService } from '../services/export'
 import LLMEnhancementPanel from './LLMEnhancementPanel'
+import RepositoryAnalysisDisplay from './RepositoryAnalysisDisplay'
 import { SlidePresentation, RepositoryData, StoryStructure } from '../types'
 
 const slideGeneratorService = new SlideGeneratorService()
@@ -216,6 +217,11 @@ export default function SlideGenerator() {
           </button>
         </div>
       </div>
+
+      {/* Repository Analysis Display */}
+      {repositoryData && (
+        <RepositoryAnalysisDisplay repository={repositoryData} />
+      )}
 
       {/* Generated Slides Preview */}
       {presentation && (
